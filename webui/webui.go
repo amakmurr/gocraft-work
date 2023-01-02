@@ -27,10 +27,13 @@ type Server struct {
 
 type context struct {
 	*Server
+	basicAuth bool
+	username  string
+	password  string
 }
 
 // NewServer creates and returns a new server. The 'namespace' param is the redis namespace to use. The hostPort param is the address to bind on to expose the API.
-func NewServer(namespace string, pool *redis.Pool, hostPort string) *Server {
+func NewServer(namespace string, pool *redis.Pool, hostPort string, basicAuth bool, username string, password string) *Server {
 	router := web.New(context{})
 	server := &Server{
 		namespace: namespace,
@@ -41,14 +44,19 @@ func NewServer(namespace string, pool *redis.Pool, hostPort string) *Server {
 		router:    router,
 	}
 
+	router.Middleware(web.LoggerMiddleware)
 	router.Middleware(func(c *context, rw web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		c.Server = server
+		c.basicAuth = basicAuth
+		c.username = username
+		c.password = password
 		next(rw, r)
 	})
 	router.Middleware(func(rw web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 		next(rw, r)
 	})
+	router.Middleware((*context).BasicAuthMiddleware)
 	router.Get("/queues", (*context).queues)
 	router.Get("/worker_pools", (*context).workerPools)
 	router.Get("/busy_workers", (*context).busyWorkers)
@@ -64,6 +72,7 @@ func NewServer(namespace string, pool *redis.Pool, hostPort string) *Server {
 	// Build the HTML page:
 	//
 	assetRouter := router.Subrouter(context{}, "")
+	assetRouter.Middleware((*context).BasicAuthMiddleware)
 	assetRouter.Get("/", func(c *context, rw web.ResponseWriter, req *web.Request) {
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 		rw.Write(assets.MustAsset("index.html"))
