@@ -17,6 +17,9 @@ var (
 	redisDatabase  = flag.String("database", "0", "redis database")
 	redisNamespace = flag.String("ns", "work", "redis namespace")
 	webHostPort    = flag.String("listen", ":5040", "hostport to listen for HTTP JSON API")
+	basicAuth      = flag.Bool("basic-auth", false, "enable basic auth")
+	username       = flag.String("username", "", "required when basic auth enabled")
+	password       = flag.String("password", "", "required when basic auth enabled")
 )
 
 func main() {
@@ -27,6 +30,12 @@ func main() {
 	fmt.Println("database = ", *redisDatabase)
 	fmt.Println("namespace = ", *redisNamespace)
 	fmt.Println("listen = ", *webHostPort)
+	fmt.Println("basic auth enable = ", *basicAuth)
+
+	if *basicAuth && !(username != nil && *username != "" && password != nil && *password != "") {
+		fmt.Println("both username and password must be provided when basic auth is enabled")
+		return
+	}
 
 	database, err := strconv.Atoi(*redisDatabase)
 	if err != nil {
@@ -36,7 +45,7 @@ func main() {
 
 	pool := newPool(*redisHostPort, database)
 
-	server := webui.NewServer(*redisNamespace, pool, *webHostPort)
+	server := webui.NewServer(*redisNamespace, pool, *webHostPort, *basicAuth, *username, *password)
 	server.Start()
 
 	c := make(chan os.Signal, 1)
